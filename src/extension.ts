@@ -2,7 +2,6 @@
 import * as vscode from 'vscode';
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { LlmPromptViewProvider } from './llmPromptViewProvider';
 
@@ -15,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(LlmPromptViewProvider.viewType, viewProvider)
     );
 
-    // Register a command (from the Command Palette) that launches the Python script.
+    // Register a command (from the Command Palette) that launches the Python script and opens the prompt in a new editor.
     const disposable = vscode.commands.registerCommand('llm-codebase-prompt-gen.generatePrompt', async () => {
         await runPythonScriptAndOpenEditor(context);
     });
@@ -40,7 +39,7 @@ function checkPythonInstalled(): Promise<boolean> {
 }
 
 /**
- * Runs the bundled Python script to generate the prompt and opens the output in a new editor.
+ * Runs the bundled Python script to generate the prompt (via stdout) and opens the output in a new editor.
  */
 async function runPythonScriptAndOpenEditor(context: vscode.ExtensionContext) {
     // Check if Python is installed.
@@ -57,19 +56,15 @@ async function runPythonScriptAndOpenEditor(context: vscode.ExtensionContext) {
     }
     const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
 
-    // Get the absolute path to the bundled Python script.
-    // Assumes the script is in a folder named "python" in the extension root.
+    // Get the absolute path to the bundled Python script (assumes it is in a folder named "python").
     const pythonScriptPath = context.asAbsolutePath(path.join('python', 'generate_prompt.py'));
     if (!fs.existsSync(pythonScriptPath)) {
         vscode.window.showErrorMessage(`Python script not found at ${pythonScriptPath}`);
         return;
     }
 
-    // Define a temporary output file.
-    const tmpOutputFile = path.join(os.tmpdir(), 'llm_prompt.txt');
-    const args = [workspaceRoot, tmpOutputFile];
+    const args = [workspaceRoot]; // No output file argument needed now.
 
-    // Run the Python script with a progress notification.
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Generating prompt via Python script...",
@@ -83,17 +78,12 @@ async function runPythonScriptAndOpenEditor(context: vscode.ExtensionContext) {
                     resolve();
                     return;
                 }
-                // Read the output file and open it in a new editor.
-                fs.readFile(tmpOutputFile, 'utf8', async (readErr, data) => {
-                    if (readErr) {
-                        vscode.window.showErrorMessage("Error reading output file: " + readErr.message);
-                        console.error("Read error:", readErr);
-                    } else {
-                        const doc = await vscode.workspace.openTextDocument({ content: data, language: 'plaintext' });
-                        await vscode.window.showTextDocument(doc, { preview: false });
-                    }
-                    resolve();
-                });
+                // Use stdout as the prompt result.
+                (async () => {
+                  const doc = await vscode.workspace.openTextDocument({ content: stdout, language: 'plaintext' });
+                  await vscode.window.showTextDocument(doc, { preview: false });
+                })();
+                resolve();
             });
         });
     });

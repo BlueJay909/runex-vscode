@@ -28,9 +28,7 @@ def should_ignore(rel_path, ignore_patterns):
     for pattern in ignore_patterns:
         pattern_norm = pattern.replace(os.sep, '/')
         if pattern_norm.endswith('/'):
-            # Remove trailing slash to match directory names.
             pat = pattern_norm.rstrip('/')
-            # If the relative path equals the directory or is inside it, ignore it.
             if rel_path_norm == pat or rel_path_norm.startswith(pat + '/'):
                 return True
         else:
@@ -52,24 +50,20 @@ def build_tree(current_dir, root_dir, prefix="", ignore_patterns=None):
         return []
     tree_lines = []
     filtered_items = []
-    # Filter out items that should be ignored.
     for item in items:
-        path = os.path.join(current_dir, item)
-        rel_path = os.path.relpath(path, root_dir)
+        full_path = os.path.join(current_dir, item)
+        rel_path = os.path.relpath(full_path, root_dir)
         if should_ignore(rel_path, ignore_patterns):
             continue
         filtered_items.append(item)
-
     for i, item in enumerate(filtered_items):
-        path = os.path.join(current_dir, item)
-        rel_path = os.path.relpath(path, root_dir)
+        full_path = os.path.join(current_dir, item)
+        rel_path = os.path.relpath(full_path, root_dir)
         connector = "└── " if i == len(filtered_items) - 1 else "├── "
-        if os.path.isdir(path):
-            # Append directory name with a trailing slash
+        if os.path.isdir(full_path):
             tree_lines.append(f"{prefix}{connector}{item}/")
-            # Prepare the prefix for the sub-level
             extension = "    " if i == len(filtered_items) - 1 else "│   "
-            tree_lines.extend(build_tree(path, root_dir, prefix + extension, ignore_patterns))
+            tree_lines.extend(build_tree(full_path, root_dir, prefix + extension, ignore_patterns))
         else:
             tree_lines.append(f"{prefix}{connector}{item}")
     return tree_lines
@@ -87,7 +81,7 @@ def generate_folder_structure(root_dir, ignore_patterns=None):
 
 def append_file_contents(root_dir, ignore_patterns=None):
     """
-    Walk the directory tree and for each file not matching the ignore_patterns,
+    Walk through the directory tree and for each file not matching the ignore_patterns,
     append its content with a header indicating the filename and its relative path.
     """
     if ignore_patterns is None:
@@ -118,7 +112,7 @@ def main():
         description="Generate an LLM prompt from a project codebase by including the folder structure and file contents."
     )
     parser.add_argument("root_dir", help="The root directory of your project")
-    parser.add_argument("output_file", help="The file path where the prompt should be saved")
+    parser.add_argument("output_file", nargs="?", help="Optional: the file path where the prompt should be saved. If omitted, the prompt is printed to stdout.")
     parser.add_argument(
         "--ignore-file",
         default=".llmignore",
@@ -126,28 +120,17 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load ignore patterns if the ignore file exists.
     ignore_patterns = load_ignore_patterns(args.root_dir, args.ignore_file)
-
-    # Generate folder structure representation.
     folder_structure = generate_folder_structure(args.root_dir, ignore_patterns)
-
-    # Generate file contents with header comments.
     file_contents = append_file_contents(args.root_dir, ignore_patterns)
+    prompt_text = f"Project Structure:\n\n{folder_structure}\n\n{file_contents}"
 
-    # Combine both parts into a final prompt text.
-    prompt_text = (
-        "Project Structure:\n\n" +
-        folder_structure +
-        "\n\n" +
-        file_contents
-    )
-
-    # Write the final prompt to the specified output file.
-    with open(args.output_file, "w", encoding="utf-8") as out_file:
-        out_file.write(prompt_text)
-
-    print(f"Prompt file generated at: {args.output_file}")
+    if args.output_file:
+        with open(args.output_file, "w", encoding="utf-8") as out_file:
+            out_file.write(prompt_text)
+        print(f"Prompt file generated at: {args.output_file}")
+    else:
+        print(prompt_text)
 
 if __name__ == "__main__":
     main()

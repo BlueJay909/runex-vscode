@@ -20,7 +20,6 @@ export class LlmPromptViewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
-      // Allow loading local resources from the extension (bundled Python script)
       localResourceRoots: [this._extensionUri]
     };
 
@@ -73,22 +72,16 @@ export class LlmPromptViewProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = folders[0].uri.fsPath;
 
     // Use the extension context to get the absolute path to the bundled Python script.
-    const pythonScriptPath = vscode.extensions.getExtension('your.publisher.llm-codebase-prompt-gen')?.extensionPath 
-      ? path.join(vscode.extensions.getExtension('your.publisher.llm-codebase-prompt-gen')!.extensionPath, 'python', 'generate_prompt.py')
-      : this._extensionUri.fsPath
-        ? path.join(this._extensionUri.fsPath, 'python', 'generate_prompt.py')
-        : '';
-
+    const pythonScriptPath = this._extensionUri.fsPath
+      ? path.join(this._extensionUri.fsPath, 'python', 'generate_prompt.py')
+      : '';
     if (!fs.existsSync(pythonScriptPath)) {
       vscode.window.showErrorMessage(`Python script not found at ${pythonScriptPath}`);
       return;
     }
 
-    // Use a temporary output file.
-    const tmpOutputFile = path.join(os.tmpdir(), 'llm_prompt.txt');
-
-    // Build the command arguments.
-    const args = [workspaceRoot, tmpOutputFile];
+    // Build the command arguments (now only the workspaceRoot).
+    const args = [workspaceRoot];
 
     vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
@@ -103,17 +96,9 @@ export class LlmPromptViewProvider implements vscode.WebviewViewProvider {
             resolve();
             return;
           }
-          // Read the output file.
-          fs.readFile(tmpOutputFile, 'utf8', (readErr, data) => {
-            if (readErr) {
-              vscode.window.showErrorMessage("Error reading output file: " + readErr.message);
-              console.error("Read error:", readErr);
-            } else {
-              // Update the webview with the result.
-              this._view?.webview.postMessage({ command: 'updatePrompt', prompt: data });
-            }
-            resolve();
-          });
+          // Use stdout as the prompt result.
+          this._view?.webview.postMessage({ command: 'updatePrompt', prompt: stdout });
+          resolve();
         });
       });
     });
@@ -195,5 +180,5 @@ export class LlmPromptViewProvider implements vscode.WebviewViewProvider {
       </body>
       </html>
     `;
-  }  
+  }
 }
