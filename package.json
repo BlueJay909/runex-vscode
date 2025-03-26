@@ -14,6 +14,22 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+    "type": "object",
+    "title": "LLM Prompt Generator",
+    "properties": {
+      "llmPrompt.pythonPath": {
+        "type": "string",
+        "default": "python3",
+        "description": "Path to the Python interpreter used to run runex.pex."
+      },
+      "llmPrompt.runexFlags": {
+        "type": "string",
+        "default": "",
+        "description": "Command-line flags to pass to runex.pex (e.g. '-s' for structure-only, '-oj' for JSON output)."
+      }
+    }
+  },
     "viewsContainers": {
       "activitybar": [
         {
